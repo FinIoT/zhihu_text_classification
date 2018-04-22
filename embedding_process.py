@@ -43,20 +43,43 @@ def get_word_embedding():
     word_embedding=np.vstack((vec_special_sym,word_embedding))
      
     #保存词向量
-    save_path='../data'
+    save_path='../data/'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     np.save(save_path+'word_embedding.npy',word_embedding)
-    
+    #dump几次后面就要load几次
     with open(save_path+'sr_word2id.pkl','wb') as outp:
-        pickle.dump(sr_word2id,outp)
-        pickle.dump(sr_id2word,outp)
-    print('saving the word_embedding.npy to ../data/word_embedding,npy ')
+        pickle.dump(sr_id2word,outp,True)
+        pickle.dump(sr_word2id,outp,True)
+    print('word_embdding.npy saved... sr_word2id pickled...')
+       
+def get_char_embedding():
+    print('getting the char embeddings...')
+    wv=word2vec.load('../raw_data/char_embedding.txt')
+    char_embedding=wv.vectors
+    chars=wv.vocab
     
+    sr_id2char=pd.Series(chars, index=range(n_special_sym, n_special_sym+len(chars)))
+    sr_char2id=pd.Series(range(n_special_sym, n_special_sym+len(chars)),index=chars)
     
-#def get_char_embedding():
-
+    for i in range(n_special_sym):
+        sr_id2char[i]=SPECIAL_SYMBOL[i]
+        sr_char2id[SPECIAL_SYMBOL[i]]=i
+    
+    vec_special_sym=np.random.randn(n_special_sym,embedding_size)
+    char_embedding=np.vstack((vec_special_sym,char_embedding))
+    
+    #保存字向量
+    save_path='../data/'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    np.save(save_path+'char_embedding.npy',char_embedding)
+    
+    with open(save_path+'sr_char2id.pkl','wb') as outp:
+        pickle.dump(sr_id2char,outp,True)
+        pickle.dump(sr_char2id,outp,True)
+    print('char_embdding.npy saved... sr_char2id pickled...')
     
 if __name__=='__main__':
     get_word_embedding()
-#    get_char_embedding()
+    get_char_embedding()
