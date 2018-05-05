@@ -19,7 +19,7 @@ def question_and_topic_2id():
     df_question_topic.topics=df_question_topic.topics.apply(lambda tps:tps.split(','))
     #print(type(df_question_topic.topics))：<class 'pandas.core.series.Series'>
     save_path='../data/'
-    print('question number:%d' %len(df_question_topic))
+    print('question number:%d' %len(df_question_topic))#2999967
     
     questions=df_question_topic.question.values
    
@@ -34,6 +34,7 @@ def question_and_topic_2id():
     
     sr_topic2id=pd.Series(range(len(topics)),index=topics)
     sr_id2topic=pd.Series(topics,index=range(len(topics)))
+    #print(len(sr_topic2id)):1999
     
     with open(save_path+'sr_question2id.pkl','wb') as outp:
         pickle.dump(sr_question2id,outp)
