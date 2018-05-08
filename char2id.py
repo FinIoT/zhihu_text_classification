@@ -20,13 +20,27 @@ def test_char2id():
     #print(type(df_eval)):pandas.core.frame.DataFrame
     #print(df_eval.char_tdf_eval.char_title.valuesitle.values[88]):打印的是行号为88的值，其实是第89个值
     #print(type(df_eval.char_title.values)):ndarray
-    nan_list=[]
-    for i in enumerate(df_eval.char_content.isna()):
-        if i[1]==True:
-            nan_list.append(i[0])
-    #print('non content number: %d'% (len(nan_list))):55179     
-#    for i in nan_list:
-#        print(i)
+    na_title_list=[]
+    for i in range(len(df_eval)):
+        char_title=df_eval.char_title.values[i]
+        if type(char_title) is float:
+            na_title_list.append(i)
+    print('there are %d questions wihtout title.'%len(na_title_list))
+    #下面两行代码逻辑估计有问题，如果没有title就一定有content吗？
+    for i in na_title_list:
+        df_eval.at[i,'char_title']=df_eval.at[i,'char_content']
+        
+    na_content_list=list()
+    for i in range(len(df_eval)):
+        char_content=df_eval.char_content.values[i]
+        if type(char_content) is float:
+            na_content_list.append(i)
+    print('there are %d questions wihtout title.'%len(na_content_list))
+    
+    for i in na_content_list:
+        df_eval.at[i,'char_content']=df_eval.at[i,'char_title']
+        
+
 
     
     
