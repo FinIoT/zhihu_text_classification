@@ -7,6 +7,23 @@ Created on Sat May  5 21:53:00 2018
 import numpy as np
 import pandas as pd
 import time
+import tqdm
+import pickle
+from multiprocessing import Pool
+
+
+save_path='../data/'
+with open(save_path+'sr_char2id.pkl','rb') as inp:
+    #Series形式的数据
+    sr_id2char=pickle.load(inp)
+    sr_char2id=pickle.load(inp)
+dict_char2id=dict()
+for i in range(len(sr_char2id)):
+    dict_char2id[sr_char2id.index[i]]=sr_char2id.value[i]
+
+def get_char2id(chars):
+    chars=chars.strip().split(',')
+    ids=list
 
 def test_char2id():
     '''将测试集中所有字转化为数字'''
@@ -31,14 +48,18 @@ def test_char2id():
         df_eval.at[i,'char_title']=df_eval.at[i,'char_content']
         
     na_content_list=list()
-    for i in range(len(df_eval)):
+    for i in tqdm(range(len(df_eval))):
         char_content=df_eval.char_content.values[i]
         if type(char_content) is float:
             na_content_list.append(i)
     print('there are %d questions wihtout title.'%len(na_content_list))
     
-    for i in na_content_list:
+    for i in tqdm(na_content_list):
         df_eval.at[i,'char_content']=df_eval.at[i,'char_title']
+    
+    p=Pool()
+    title2num=np.asarray(p.map(get_char2id,df_eval.char_title.values))
+    
         
 
 
