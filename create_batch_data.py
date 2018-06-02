@@ -6,7 +6,7 @@ Created on Tue May 15 21:46:07 2018
 """
 
 import sys,os
-import pickle
+import pickle,gc
 import pandas as pd
 from multiprocessing import Pool
 import numpy as np
@@ -92,10 +92,16 @@ def wd_train_get_batch(title_len=30, content_len=150, batch_size=128):
     sample_num = len(X_valid)
     print('valid_sample_num=%d' % sample_num)
     train_batch(X_valid, y_valid, wd_valid_path, batch_size)
+    print('release space, deleting X_valid, y_valid')
+    del X_valid,y_valid
+    gc.collect()
     # 训练集打batch
     sample_num = len(X_train)
     print('train_sample_num=%d' % sample_num)
     train_batch(X_train, y_train, wd_train_path, batch_size)
+    print('release space, deleting X_train, y_train')
+    del X_train,y_train
+    gc.collect()
 
 def wd_test_get_batch(title_len=30, content_len=150, batch_size=128):
     print('loading eval data...')
@@ -111,24 +117,33 @@ def wd_test_get_batch(title_len=30, content_len=150, batch_size=128):
     print('OK!transfered! titles and content are stacked horizontally')
     print('test sample_num=',len(X))
     eval_batch(X,wd_test_path,batch_size)
+    print('release space, deleting X')
+    del X
+    gc.collect()
     
 def ch_train_get_batch(title_len=52, content_len=300, batch_size=128):
     print('loading char train_title and train_content.')
     train_title = np.load('../data/ch_train_title.npy')
     train_content = np.load('../data/ch_train_content.npy')
+    print('data loaded, start to pad_X52,X300')
     p = Pool()
     X_title = np.asarray(p.map(pad_X52, train_title))
     X_content = np.asarray(p.map(pad_X300, train_content))
     p.close()
     p.join()
+    print('Pool finished!')
     X = np.hstack([X_title, X_content])
+    del X_title,X_content
+    gc.collect()
+    print('del X_title, X_content')
     y = np.load('../data/y_tr.npy')
+    print('y label loaded ...')
     # 划分验证集
     sample_num = X.shape[0]
     np.random.seed(13)
     valid_num = 100000
     new_index = np.random.permutation(sample_num)
-    X = X[new_index]
+    X = X[new_index]#运行到这产生 MemoryError
     y = y[new_index]
     X_valid = X[:valid_num]
     y_valid = y[:valid_num]
@@ -141,10 +156,16 @@ def ch_train_get_batch(title_len=52, content_len=300, batch_size=128):
     sample_num = len(X_valid)
     print('valid_sample_num=%d' % sample_num)
     train_batch(X_valid, y_valid, ch_valid_path, batch_size)
+    print('release space, deleting X_valid, y_valid')
+    del X_valid,y_valid
+    gc.collect()
     # 训练集打batch
     sample_num = len(X_train)
     print('train_sample_num=%d' % sample_num)
     train_batch(X_train, y_train, ch_train_path, batch_size)
+    print('release space, deleting X_train, y_train')
+    del X_train,y_train
+    gc.collect()
 
 
 def ch_test_get_batch(title_len=52, content_len=300, batch_size=128):
@@ -159,6 +180,9 @@ def ch_test_get_batch(title_len=52, content_len=300, batch_size=128):
     sample_num = len(X)
     print('eval_sample_num=%d' % sample_num)
     eval_batch(X, ch_test_path, batch_size)
+    print('release space, deleting X')
+    del X
+    gc.collect()
 
 if __name__ == '__main__':
     wd_train_get_batch()
