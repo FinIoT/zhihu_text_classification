@@ -83,7 +83,14 @@ class TextCNN():
         bnepsilon=1e-5
         if convolutional:
             #以某一维度计算均值或方差
-            mean,variance=tf.moment(Ylogits,[0,1,2])
+            mean,variance=tf.nn.moments(Ylogits,[0,1,2])
+        else:
+            mean,variance=tf.nn.moments(Ylogits,[0])
+        update_moving_averages=exp_moving_avg.apply([mean,variance])
+        tf.cond(self.tst,lambda: exp_moving_avg.average(mean), lambda: mean)
+        tf.cond(self.tst,lambda: exp_moving_avg.average(variance), lambda: variance)
+        Ybn=tf.nn.batch_normalization(Ylogits,m,v,None,bnepsilon)
+        return Ybn,update_moving_averages
         
 
 
