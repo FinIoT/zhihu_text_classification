@@ -57,6 +57,31 @@ va_batches = os.listdir(data_valid_path)
 n_tr_batches = len(tr_batches)
 n_va_batches = len(va_batches)
 
+def get_batch(data_path,batch_id):
+    new_batch=np.load(data_path+str(batch_id)+'.npz')
+    X_batch=new_batch['X']
+    y_batch=new_batch['y']
+    X1_batch=X_batch[:,:title_len]
+    X2_batch=X_batch[:,title_len:]
+    return [X1_batch,X2_batch,y_batch]
+    
+
+def valid_epoch(data_path,sess,model):
+    #？？以下这两行应该是多余的，前面已经写过了。
+    va_batches=os.listdir(data_path)
+    n_va_batches=len(va_batches)
+    _cost=0.0
+    predict_labels_list=list()
+    marked_labels_list=list()
+    for i in range(n_va_batches):
+        [X1_batch,X2_batch,y_batch]=get_batch(data_path,i)
+        marked_labels_list.extend(y_batch)
+        _batch_size=len(y_batch)
+        fetches=[model.loss,model.y_pred]
+        feed_dict={model.X1_inputs:X1_batch,}
+        
+    
+
 def main():
     global ckpt_path
     global last_f1
@@ -69,18 +94,18 @@ def main():
         shutil.rmtree(summary_path)
         os.makedirs(summary_path)
     #引入数据--已经训练好的embedding,穿插打印些提示语言
-    print('lodaing embedding...')
+    print('1.lodaing embedding...')
     W_embedding=np.load(embedding_path)
     print('training sample_num = %d' % n_tr_batches)#23360
     print('valid sample_num = %d' % n_va_batches)#782
     
     #构建模型，  
-    print('building model...')
+    print('2.building model...')
     config=tf.ConfigProto()
     config.gpu_options.allow_growth=True
     
     #打开Session,模型图必须在Session中构建，对Sesssion中的config进行设置
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
         #构建模型图
         model=network.TextCNN(W_embedding,settings)
         with tf.variable_scope('training_ops') as vs:
@@ -92,12 +117,12 @@ def main():
                 tvars1=tf.trainable_variables()
                 grads1=tf.gradients(model.loss,tvars1)
                 optimizer1=tf.train.AdamOptimizer(learing_rate=learning_rate)
-                optimizer1.apply_gradients(zip(grads1,tvars1),global_step=model.global_step)
+                train_op1=optimizer1.apply_gradients(zip(grads1,tvars1),global_step=model.global_step)
             with tf.varialbe_scope('Optimizer2'):
                 tvars2=[tvar for tvar in tvars1 if 'embedding' not in tvar.name]
                 grads2=tf.gradients(model.loss,tvars2)
                 optimizer2=tf.train.AdamOptimizer(learning_rate=learning_rate)
-                optimizer2.apply_gradients(zip(grads2,tvars2),global_step=model.global_step)
+                train_op2=optimizer2.apply_gradients(zip(grads2,tvars2),global_step=model.global_step)
             update_op=tf.group(*model.update_emas)
             merged=tf.summary.merge_all()
             train_writer=tf.summary.FileWriter(summary_path+'train', sess.graph)
@@ -109,9 +134,14 @@ def main():
             print('restoring model from chekcpoint...')
             model.saver.restore(sess,tf.train.latest_checkpoint(ckpt_path))
             last_valid_cost,precision, recall, last_f1=valid_epoch(data_valid_path,sess,model)
-                
+            print('valid_cost=%g, p=%g, r=%g, f1=%g'%(last_valid_cost,precision, recall, last_f1))
+            sess.run(tf.variables_initializer(training_ops))
+            train_op2=train_op1
+        else:
+            print('Initializing variables...')
+            sess.run(tf.global_variables_initializer())
         
-        #填充数据
+        print('3. Begin training...')
         
     
 
