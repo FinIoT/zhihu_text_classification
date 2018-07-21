@@ -70,7 +70,7 @@ def valid_epoch(data_path,sess,model):
     #？？以下这两行应该是多余的，前面已经写过了。
     va_batches=os.listdir(data_path)
     n_va_batches=len(va_batches)
-    _cost=0.0
+    _costs=0.0
     predict_labels_list=list()
     marked_labels_list=list()
     for i in range(n_va_batches):
@@ -78,8 +78,34 @@ def valid_epoch(data_path,sess,model):
         marked_labels_list.extend(y_batch)
         _batch_size=len(y_batch)
         fetches=[model.loss,model.y_pred]
-        feed_dict={model.X1_inputs:X1_batch,}
+        feed_dict = {model.X1_inputs: X1_batch, model.X2_inputs: X2_batch, model.y_inputs: y_batch,
+                     model.batch_size: _batch_size, model.tst: True, model.keep_prob: 1.0}
         
+        _cost,predict_labels=sess.run(fetches,feed_dict)
+        #累加1个epoch里的误差
+        _costs+=_cost
+        #注意predict_lavels的shape为[batch_size,n_class]
+        predict_labels=list(map(lambda label:label.argsort()[-1:-6:-1],predict_labels))
+        predict_labels_list.extend(predict_labels)
+    predict_label_and_marked_label_list=zip(predict_labels_list,marked_labels_list)
+    precision,recall,f1=score_eval(predict_label_and_marked_label_list)
+    mean_cost=_costs/n_va_batches
+    return mean_cost,precision,recall,f1
+
+def train_epoch(model,sess,):
+    global last_f1
+    global lr
+    time0=time.time()
+    
+    #引入数据
+    for i in range(n_tr_batches):
+        [X1_batch,X2_batch,y_batch]=get_batch(data_train_path,i)
+        _batch_size=len(y_batch)
+        fetches=[model.loss]
+        feed_dict={model.X1_inputs:X1_batch, model.X2_inputs:X2_batch, model.y_inputs:y_batch,
+                   model.batch_size:_batch_size,model.tst:True,model.keep_prob:0.5}
+        loss=sess.run(fetches,feed_dict)
+     
     
 
 def main():
@@ -142,6 +168,24 @@ def main():
             sess.run(tf.global_variables_initializer())
         
         print('3. Begin training...')
+        print('max_epoch=%d, max_max_epoch=%d'%(FLAGS.max_epoch,FLAGS.max_max_epoch))
+        for epoch in range(FLAGS.max_max_epoch):
+            global_step=sess.run(model.global_step)
+            print('Global_step=%d,lr=%g' %(global_step,sess.run(learning_rate)))
+            if epoch==FLAGS.max_epoch:
+                train_op=train_op1
+            else:
+                train_op=train_op2
+            train_fetches=[merged,model.loss,train_op,update_op]
+            valid_fetches=[merged,model.loss]
+            train_epoch(data_train_path,sess,model,train_fetches,valid_fetches,train_writer,test_writer)
+        #最后再做一次印证
+        valid_cost,precision,recall,f1=valid_epoch(data_valid_path,sess, model)
+        print('END.Global_step=%d: valid cost=%g; p=%g, r=%g, f1=%g' % (
+            sess.run(model.global_step), valid_cost, precision, recall, f1))
+        if f1>last_f1:#save the better one
+            saving_path=model.save(sess, model_path,sess.run(model.global_step)+1)
+            print('save new model to s%'%saving_path)
         
     
 
