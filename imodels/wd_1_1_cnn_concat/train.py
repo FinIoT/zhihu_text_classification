@@ -96,9 +96,21 @@ def train_epoch(model,sess,):
     global last_f1
     global lr
     time0=time.time()
-    
-    #引入数据
-    for i in range(n_tr_batches):
+    batch_indexs=np.random.permutation(n_tr_batches)    
+    #引入数据,弄上tqdm显示进度
+    for batch in tqdm(range(n_tr_batches)):
+        #看下global_step,每隔一万步valid一下
+        global_step=sess.run(model.global_step)
+        if (global_step+1)%FLAGS.valid_step==0:
+            valid_cost, precision, recall, f1=valid_epoch(data_valid_path,sess,model)
+            print('Global_step=%d: valid cost=%g; p=%g, r=%g, f1=%g, time=%g s' % (
+                global_step, valid_cost, precision, recall, f1, time.time() - time0))
+            time0=time.time()
+            if f1>last_f1:
+                last_f1=f1
+                saving_path=model.saver.save(sess,model_path,)
+        
+        
         [X1_batch,X2_batch,y_batch]=get_batch(data_train_path,i)
         _batch_size=len(y_batch)
         fetches=[model.loss]
