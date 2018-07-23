@@ -76,6 +76,8 @@ def valid_epoch(data_path,sess,model):
     for i in range(n_va_batches):
         [X1_batch,X2_batch,y_batch]=get_batch(data_path,i)
         marked_labels_list.extend(y_batch)
+        #将label转化为one_hot形式
+        y_batch = to_categorical(y_batch)
         _batch_size=len(y_batch)
         fetches=[model.loss,model.y_pred]
         feed_dict = {model.X1_inputs: X1_batch, model.X2_inputs: X2_batch, model.y_inputs: y_batch,
@@ -91,8 +93,8 @@ def valid_epoch(data_path,sess,model):
     precision,recall,f1=score_eval(predict_label_and_marked_label_list)
     mean_cost=_costs/n_va_batches
     return mean_cost,precision,recall,f1
-
-def train_epoch(model,sess,):
+    #下面data_path应该是多余的
+def train_epoch(data_path,sess,model,train_fetches, valid_fetches,train_writer,test_writer):
     global last_f1
     global lr
     time0=time.time()
@@ -108,15 +110,29 @@ def train_epoch(model,sess,):
             time0=time.time()
             if f1>last_f1:
                 last_f1=f1
-                saving_path=model.saver.save(sess,model_path,)
+                saving_path=model.saver.save(sess,model_path,global_step+1)
+                print('saved new model to %s ' % saving_path)
+        #training
         
-        
-        [X1_batch,X2_batch,y_batch]=get_batch(data_train_path,i)
+        batch_id=batch_indexs[batch]
+        [X1_batch,X2_batch,y_batch]=get_batch(data_train_path,batch_id)
+        #将label转化为one_hot形式
+        y_batch = to_categorical(y_batch)
         _batch_size=len(y_batch)
-        fetches=[model.loss]
         feed_dict={model.X1_inputs:X1_batch, model.X2_inputs:X2_batch, model.y_inputs:y_batch,
                    model.batch_size:_batch_size,model.tst:True,model.keep_prob:0.5}
-        loss=sess.run(fetches,feed_dict)
+        summary, _cost, _, _=sess.run(train_fetches,feed_dict)
+        #valid per 500 steps
+        if (global_step+1) % 500 ==0:
+            train_writer.add_summary(summary, global_step)
+            batch_id=np.random.randint(0,n_va_batches)
+            [X1_batch,X2_batch,y_batch]=get_batch(data_valid_path,batch_id)
+            y_batch = to_categorical(y_batch)
+            _batch_size = len(y_batch)
+            feed_dict = {model.X1_inputs: X1_batch, model.X2_inputs: X2_batch, model.y_inputs: y_batch,
+                         model.batch_size: _batch_size, model.tst: True, model.keep_prob: 1.0}
+            summary, _cost = sess.run(valid_fetches, feed_dict)
+            test_writer.add_summary(summary, global_step)
      
     
 
