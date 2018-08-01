@@ -39,6 +39,22 @@ def local_predict(sess, model):
         [X1_batch, X2_batch, y_batch]=get_batch(i)
         marked_label_list.extend(y_batch)
         _batch_size=len(X1_batch)
+        fetches=model.y_pred
+        feed_dict={model.X1_inputs:X1_batch,model.X2_inputs:X2_batch, model.y_inputs:y_batch,
+                   model.batch_size:_batch_size, model.tst:True, model.keep_prob:1.0}
+        predict_labels=sess.run(fetches,feed_dict)#batch_size*1999
+        predict_scores.append(predict_labels)
+        predict_labels=map(lambda label: lable.argsort()[-1:-6:-1], predict_labels)#batch_size*5
+        predict_label_list.extend(predict_labels)
+    predict_label_and_marked_label_list=zip(predict_label_list,marked_lable_list)
+    precision, recall, f1=score_eval(predict_label_and_marked_label_list)
+    print('Local valid p=%g, r=%g, f1=%g' % (precision, recall, f1))
+    predict_scores=np.vstack(np.asarray(predict_scores))
+    local_scores_name=local_scores_path+model.name+'/.npy'
+    np.save(local_scores_name,predict_scores)
+    print('local_scores.shape=', predict_scores.shape)
+    print('Writed the scores into %s, time %g s' % (local_scores_name, time.time() - time0))
+    
     
     
 def predict(sess, model):
