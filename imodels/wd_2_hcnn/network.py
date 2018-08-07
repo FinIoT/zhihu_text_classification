@@ -40,12 +40,24 @@ class HCNN():
             self._X1_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.title_len],name='X1_inputs')
             #shape是句子长度乘以句子数目
             self._X2_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.doc_len*self.sent_len],name='X2_inputs')
+            self._y_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.n_class],name='y_inputs')
         
+        with tf.variable_scope('embedding'):
+            #这里可以直接用self.embedding=W_embedding代替吗？不可以，应该将矩阵转化为张量，并且后期可能要训练W_embedding
+            #直接self.embedding=W_embedding以后就无法训练了
+            self.embedding=tf.get_variable(name='embedding',shape=W_embedding.shape,
+                                           initializer=tf.constant_initializer(W_embedding),trainable=True)
+        self.embedding_size=W_embedding.shape[1]
+        with tf.variable_scope('cnn_text'):
+            output_title=self.cnn_inference(X1_inputs,self.embedding)
         
 @property
 def X1_inputs(self):
     return self._X1_inputs
 
+@property
+def X2_inputs(self):
+    return self._X1_inputs
         
         
         
