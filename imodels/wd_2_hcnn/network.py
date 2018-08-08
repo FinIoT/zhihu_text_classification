@@ -37,7 +37,7 @@ class HCNN():
         self.fc_hidden_size=settings.fc_hidden_size
         
         with tf.name_scope('inputs'):
-            self._X1_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.title_len],name='X1_inputs')
+            self._X1_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.title_len],name='X1_inputs')#N*30
             #shape是句子长度乘以句子数目
             self._X2_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.doc_len*self.sent_len],name='X2_inputs')
             self._y_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.n_class],name='y_inputs')
@@ -49,15 +49,25 @@ class HCNN():
                                            initializer=tf.constant_initializer(W_embedding),trainable=True)
         self.embedding_size=W_embedding.shape[1]
         with tf.variable_scope('cnn_text'):
-            output_title=self.cnn_inference(X1_inputs,self.embedding)
+            #换成self.X1_inputs也可以，但是self.X1_inputs一般是供外部访问的.类内部尽量用私有变量
+            output_title=self.cnn_inference(self._X1_inputs)
+        with tf.variable_scope('hcnn_content'):
+            output_content=self.hcnn_inference(self._X2_inputs)
         
-@property
-def X1_inputs(self):
-    return self._X1_inputs
-
-@property
-def X2_inputs(self):
-    return self._X1_inputs
+    @property
+    def X1_inputs(self):
+        return self._X1_inputs
+    
+    @property
+    def X2_inputs(self):
+        return self._X1_inputs
+    
+    def cnn_inference(self, X_inputs):
+        inputs=tf.nn.embedding_lookup(self.embedding,X_inputs)#N*30*1024
+        #inputs=tf.expand_dims(inputs,-1)#N*30*2014*1
+        with tf.variable_scope('title_encoder'):
+            title_outputs=self.textcnn()
+        return title_outputs
         
         
         
