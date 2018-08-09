@@ -61,10 +61,14 @@ class HCNN():
     @property
     def X2_inputs(self):
         return self._X1_inputs
+    def textcnn(self,inputs,filter_sizes,):
+        inputs_expand=tf.expand_dims(inputs,-1)#N*30*1024*1
+        for i in filter_sizes:
+            shape=[1,i,self.embedding_size]
     
     def cnn_inference(self, X_inputs):
         inputs=tf.nn.embedding_lookup(self.embedding,X_inputs)#N*30*1024
-        #inputs=tf.expand_dims(inputs,-1)#N*30*2014*1
+
         with tf.variable_scope('title_encoder'):
             title_outputs=self.textcnn()
         return title_outputs
