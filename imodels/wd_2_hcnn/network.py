@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+va# -*- coding: utf-8 -*-
 """
 Created on Sun Aug  5 21:50:18 2018
 
@@ -35,6 +35,7 @@ class HCNN():
         self.n_filter = settings.n_filter
         self.n_class = settings.n_class
         self.fc_hidden_size=settings.fc_hidden_size
+        self.update_emas=list()
         
         with tf.name_scope('inputs'):
             self._X1_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.title_len],name='X1_inputs')#N*30
@@ -61,10 +62,28 @@ class HCNN():
     @property
     def X2_inputs(self):
         return self._X1_inputs
-    def textcnn(self,inputs,filter_sizes,):
-        inputs_expand=tf.expand_dims(inputs,-1)#N*30*1024*1
-        for i in filter_sizes:
-            shape=[1,i,self.embedding_size]
+    def textcnn(self,inputs,filter_sizes):
+        inputs_expand=tf.expand_dims(inputs,-1)#N*30*256*1
+        pooled_outputs=[]
+        for i,filtersize in enumerate(filter_sizes):
+            with tf.name_scope('conv_max_%s'%filter_size):
+                #卷积核的最后一维是卷积核个数
+                filter_shape=[filtersize,self.embedding_size,1,self.n_filter]
+                W_filter=tf.Varibale(tf.truncated_normal(filter_shape,stddev=0.1),name='W_filter')
+                beta=tf.Varible(tf.constant(0.1,tf.float32,shape=self.n_filter),name='beta')
+                tf.summary.histogram('beta',beta)
+                #cnn三部曲：卷积（即线性），（BN）激活（非线性），池化（采集最大特征）
+                conv=tf.nn.con2d(inputs_expand,W_filter,strides=[1,1,1,1],padding='VALID',name='conv')
+                conv_bn,update_ema=self.batchnorm(conv,beta，convolutional=True)
+                h=tf.nn.relu(conv_bn,name='relu')
+                
+                pooled=tf.nn.max_pool(h,ksize=[1,self.title_len-filter_size+1,1,1],strides=[1,1,1,1],
+                                      padding='VALID',name='max_pool')
+                pooled_outputs.append(pooled)#N*1*1*n_filter
+                self.update_emas.append(update_emas)
+        h_pool=tf.concat(pooled_outputs,3)#N*1*1*(n_filter*len(filter_sizes))
+        n_filter_total=self.n_filter*len(filter_sizes)
+        h_pool_flat=tf.reshape(h_pool,[-1,n_filter_total])
     
     def cnn_inference(self, X_inputs):
         inputs=tf.nn.embedding_lookup(self.embedding,X_inputs)#N*30*1024
