@@ -62,13 +62,30 @@ class HCNN():
     @property
     def X2_inputs(self):
         return self._X1_inputs
-    def textcnn(self,inputs,filter_sizes):
+    
+    def batchnorm(self, Ylogits, offset, convolutional=False):
+        exp_moving_avg=tf.train.ExponentialMovingAverage(0.999,self._global_step)
+        bnepsilon=1e-5
+        
+        if convolutional:
+            mean,variance=tf.nn.moments(Ylogits,[0,1,2])#数据形状变为[256,]，也就是只剩下256个卷积核的均值方差了
+        else: 
+            mean,variance=tf.nn.moments(Ylogits,[0])
+        
+        update_moving_avg=exp_moving_avg.apply([mean,variance])
+        m=tf.cond(self.tst, lambda: exp_moving_avg.average(mean), lambda: mean)
+        v=tf.cond(self.tst, lambda: exp_moving_avg.average(variance), lambda: variance)
+        Ybn=tf.nn.batch_normalization(Ylogits,m,v,offset,None,bnepsilon)
+        return Ybn,update_moving_avg
+    
+    
+    def textcnn(self,inputs,n_step,filter_sizes,embed_size):
         inputs_expand=tf.expand_dims(inputs,-1)#N*30*256*1
         pooled_outputs=[]
         for i,filtersize in enumerate(filter_sizes):
             with tf.name_scope('conv_max_%s'%filter_size):
                 #卷积核的最后一维是卷积核个数
-                filter_shape=[filtersize,self.embedding_size,1,self.n_filter]
+                filter_shape=[filtersize,embed_size,1,self.n_filter]
                 W_filter=tf.Varibale(tf.truncated_normal(filter_shape,stddev=0.1),name='W_filter')
                 beta=tf.Varible(tf.constant(0.1,tf.float32,shape=self.n_filter),name='beta')
                 tf.summary.histogram('beta',beta)
@@ -77,7 +94,7 @@ class HCNN():
                 conv_bn,update_ema=self.batchnorm(conv,beta，convolutional=True)
                 h=tf.nn.relu(conv_bn,name='relu')
                 
-                pooled=tf.nn.max_pool(h,ksize=[1,self.title_len-filter_size+1,1,1],strides=[1,1,1,1],
+                pooled=tf.nn.max_pool(h,ksize=[1,n_step-filter_size+1,1,1],strides=[1,1,1,1],
                                       padding='VALID',name='max_pool')
                 pooled_outputs.append(pooled)#N*1*1*n_filter
                 self.update_emas.append(update_emas)
