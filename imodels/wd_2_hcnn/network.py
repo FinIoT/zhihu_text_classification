@@ -1,4 +1,4 @@
-va# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Sun Aug  5 21:50:18 2018
 
@@ -36,6 +36,11 @@ class HCNN():
         self.n_class = settings.n_class
         self.fc_hidden_size=settings.fc_hidden_size
         self.update_emas=list()
+        self._global_step=tf.Variable(0,trainable=False,name='Global_step')
+        #placeholders
+        self._tst=tf.placeholder(tf.bool)
+        self._keep_prob=tf.placeholder(tf.float32,[])
+        self._batch_size=tf.placeholder(tf.int32,[])
         
         with tf.name_scope('inputs'):
             self._X1_inputs=tf.placeholder(dtype=tf.int64,shape=[None,self.title_len],name='X1_inputs')#N*30
@@ -54,6 +59,26 @@ class HCNN():
             output_title=self.cnn_inference(self._X1_inputs)
         with tf.variable_scope('hcnn_content'):
             output_content=self.hcnn_inference(self._X2_inputs)
+        with tf.variable_scope('fc_bn_layer'):
+            output=tf.concat([output_title,output_content],axis=1)
+            fc_shape=[self.n_filter*(len(self.sent_fliter_sizes)+len(self.doc_filter_sizes)),self.fc_hidden_size]
+            fc_W=self.weight_variable(fc_shape,'fc_Weight')
+            tf.summary.histogram('fc_W',fc_W)
+            fc_bias=self.bias_variable(self.fc_hidden_size,'fc_bias')
+            tf.summary.histogram('fc_bias',fc_bias)
+            fc_results=tf.matmul(output,fc_W,name='fc_h')
+            fc_bn,update_ema_fc=self.batchnorm(fc_results,fc_bias)
+            self.update_emas.append(update_ema_fc)
+            self.fc_bn_relu=tf.nn.relu(fc_bn,name='relu')
+            fc_bn_drop=tf.nn.dropout(self.fc_bn_relu,self._keep_prob)
+            
+        with tf.varialbe_scope('out_layer'):
+            out_W=self.weight_variable([self.fc_hidden_sizes,self.n_class],name='out_W')
+            tf.summary.histogram('out_W',out_W)
+            out_bias=self.bias_variable(self.)
+            
+        
+        
         
     @property
     def X1_inputs(self):
@@ -62,6 +87,14 @@ class HCNN():
     @property
     def X2_inputs(self):
         return self._X1_inputs
+    @property
+    def y_inputs(self):
+        return self._y_inputs
+    def weight_variable(self,shape,name):
+        return tf.Variable(tf.truncated_normal(shape,stddev=0.1),name=name)
+    def bias_variable(self,shape,name):
+        return tf.Variable(tf.constant(0.1,shape=shape),name=name)
+    
     
     def batchnorm(self, Ylogits, offset, convolutional=False):
         exp_moving_avg=tf.train.ExponentialMovingAverage(0.999,self._global_step)
@@ -108,7 +141,20 @@ class HCNN():
         with tf.variable_scope('title_encoder'):
             title_outputs=self.textcnn()
         return title_outputs
+    def hcnn_inference(self,X_inputs):
         
+        
+        inputs=tf.reshape(X_inputs,[self.batch_size*self.doc_len,self.sent_len])
+        inputs_embed=tf.nn.embedding_lookup(self.embedding,inputs)
+        #生成句子向量
+        sent_outputs=self.textcnn(input_embed,self.sent_len,self.sent_filter_sizes,self.embedding_size)
+        doc_inputs=tf.reshape(sent_outputs,[self.bath_size, self.doc_len, 
+                                            self.n_filter*len(self.sent_filter_sizes)])
+        #生成文档向量
+        doc_outputs=self.textcnn(doc_inputs,self.doc_len,self.doc_filter_sizes,
+                                 self.n_filter*len(self.sent_filter_sizes))
+        #shape=self.batch_size,self.n_filters*len(self.doc_filter_sizes)
+        return doc_outputs
         
         
         
