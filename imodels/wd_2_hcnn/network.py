@@ -75,11 +75,27 @@ class HCNN():
         with tf.varialbe_scope('out_layer'):
             out_W=self.weight_variable([self.fc_hidden_sizes,self.n_class],name='out_W')
             tf.summary.histogram('out_W',out_W)
-            out_bias=self.bias_variable(self.)
+            out_b=self.bias_variable([self.n_class],name='out_b')
+            tf.summary.histogram('out_b',out_b)
+            self._y_pred=tf.nn.xw_plus_b(fc_bn_drop,out_W,out_b,name='y_pred')
             
-        
-        
-        
+        with tf.name_scope('loss'):
+            self._loss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self._y_pred,
+                                                                              labels=self._y_inputs))
+            tf.summary.scalar('loss',self._loss)
+        self.saver=tf.train.Saver(max_to_keep=2)
+    @property
+    def global_step(self):
+        return self._global_step
+    @property
+    def tst(self):
+        return self._tst
+    @property
+    def keep_prob(self):
+        return self._keep_prob
+    @property
+    def batch_size(self):
+        return self._batch_size
     @property
     def X1_inputs(self):
         return self._X1_inputs
@@ -90,6 +106,12 @@ class HCNN():
     @property
     def y_inputs(self):
         return self._y_inputs
+    @property
+    def y_pred(self):
+        return self._y_pred
+    def loss(self):
+        return self._loss
+    
     def weight_variable(self,shape,name):
         return tf.Variable(tf.truncated_normal(shape,stddev=0.1),name=name)
     def bias_variable(self,shape,name):
