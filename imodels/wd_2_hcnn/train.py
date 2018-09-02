@@ -60,7 +60,15 @@ def main(_):
                 grads2=tf.gradients(model.loss,tvar2)
                 optimizer2=tf.train.AdamOptimizer(learning_rate=learning_rate)
                 op2=optimizer2.apply_gradients(zip(grads2,tvar2),global_step=model.global_step)
+            update_op=tf.group(*model.update_emas)
+            merged=tf.summary.merge_all()
+            train_writer=tf.summary.FileWriter(summary_path+'train', sess.graph)
+            test_writer=tf.summary.FileWriter(summary_path+'test')
+            #感觉这句是多余的，它收集不到training_ops变量名下的其它变量啊，换句话说这是个空列表。
+            training_ops=[v for v in tf.global_variables() if v.name.startswith(vs.name+'/')]
+            
         ##如果已经保存模型导入上次的
+        if os.path.exists(summary_path+'checkpoint')
         #开始epoch循环训练
         ##满足条件则保存模型           
         #引入title,content数据,数据形式应该是：N*30，N*300
