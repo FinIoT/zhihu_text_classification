@@ -6,14 +6,29 @@ Created on Wed Aug 22 21:27:23 2018
 """
 
 import tensorflow as tf
-import network
-import os
-import shutil
 import numpy as np
+from tqdm import tqdm
+import os
+import sys
+import shutil
+import time
+import network
 
-flags=tf.flags
-flags.DEFINE_bool('is_retrain',True,'if is_retrain is true, rebuild the summary')
-FLAGS=flags.FLAGS
+sys.path.append('../..')
+from data_helpers import to_categorical
+from evaluator import score_eval
+
+flags = tf.flags
+flags.DEFINE_bool('is_retrain', False, 'if is_retrain is true, not rebuild the summary')
+flags.DEFINE_integer('max_epoch', 1, 'update the embedding after max_epoch, default: 1')
+flags.DEFINE_integer('max_max_epoch', 6, 'all training epoches, default: 6')
+flags.DEFINE_float('lr', 1e-3, 'initial learning rate, default: 1e-3')
+flags.DEFINE_float('decay_rate', 0.65, 'decay rate, default: 0.65')
+flags.DEFINE_float('keep_prob', 0.5, 'keep_prob for training, default: 0.5')
+flags.DEFINE_integer('decay_step', 1000, 'decay_step, default: 1000')
+flags.DEFINE_integer('valid_step', 500, 'valid_step, default: 500')
+flags.DEFINE_float('last_f1', 0.10, 'if valid_f1 > last_f1, save new model. default: 0.10')
+FLAGS = flags.FLAGS
 
 lr = FLAGS.lr
 last_f1 = FLAGS.last_f1
@@ -30,16 +45,74 @@ tr_batches = os.listdir(data_train_path)  # batch 文件名列表
 va_batches = os.listdir(data_valid_path)
 n_tr_batches = len(tr_batches)
 n_va_batches = len(va_batches)
-def get_batch(batch_id):
-    new_batch=np.load(data_train_path+str(batch_id)+".npz")
+
+def get_batch(data_path,batch_id):
+    new_batch=np.load(data_path+str(batch_id)+".npz")
     X_batch=new_batch['X']
     y_batch=new_batch['y']
-    X1_batch=X_batch[:,:]
+    X1_batch=X_batch[:,:title_len]
+    X2_batch=X_batch[:,title_len:]
+    return [X1_batch,X2_batch,y_batch]
 
-def train_epoch():
+def valid_epoch(data_path,sess,model):
+    va_batches=os.listdir(data_path)
+    n_va_batches=len(va_batches)
+    _costs=0.0
+    predict_labels_list=list()
+    marked_labels_list=list()
+    for i in range(n_va_batches):
+        [X1_batch,X2_batch,y_batch]=get_batch(data_path,i)
+        marked_labels_list.extend(y_batch)
+        y_batch=to_categorical(y_batch)
+        _batch_size=len(y_batch)
+        fetches=[model.loss,model.y_pred]
+        feed_dict={model.X1_inputs:X1_batch, model.X2_inputs:X2_batch, model.y_inputs:y_batch,
+                   model.batch_size:_batch_size, model.tst:True, model.keep_prob:1.0}
+        _cost,predict_labels=sess.run(fetches,feed_dict)
+        _costs+=_cost
+        predict_labels=map(lambda label:label.argsort()[-1:-6:-1], predict_labels)
+        predict_labels_list.extend(predict_labels)
+    predict_label_and_marked_label_list = zip(predict_labels_list, marked_labels_list)
+    precision, recall, f1 = score_eval(predict_label_and_marked_label_list)
+    mean_cost = _costs / n_va_batches
+    return mean_cost, precision, recall, f1
+    
+
+def train_epoch(data_path, sess, model, train_fetches, valid_fetches, train_writer, test_writer):
     #获取数据
+    global last_f1
+    time0=time.time()
     batch_index=np.random.permutation(n_tr_batches)
     for batch in tqdm(range(n_tr_batches)):
+        global_step=sess.run(model.global_step)
+        if 0==(global_step+1)%FLAGS.valid_step:
+            valid_cost, precision, recall, f1 = valid_epoch(data_valid_path, sess, model)
+            print('Global_step=%d: valid cost=%g; p=%g, r=%g, f1=%g, time=%g s' % (
+                global_step, valid_cost, precision, recall, f1, time.time() - time0))
+            time0 = time.time()
+            if f1>last_f1:
+                last_f1=f1
+                saving_path=model.saver.save(sess,model_path,global_step+1)
+                print('saved new model to %s'%saving_path)
+        [X1_batch, X2_batch, y_batch]=get_batch(data_train_path,batch_index[batch])
+        y_batch=to_categorical(y_batch)
+        _batch_size = len(y_batch)
+        feed_dict = {model.X1_inputs: X1_batch, model.X2_inputs: X2_batch, model.y_inputs: y_batch,
+                     model.batch_size: _batch_size, model.tst: False, model.keep_prob: FLAGS.keep_prob}
+        summary, _cost, _, _ = sess.run(train_fetches, feed_dict)
+        #valid per 500 step
+        if (global_step+1)%500==0:
+            train_writer.add_summary(summary,global_step)
+            batch_id=np.random.int(0,n_tr_batches)
+            [X1_batch,X2_batch,y_batch]=get_batch(batch_id)
+            y_batch = to_categorical(y_batch)
+            _batch_size = len(y_batch)
+            feed_dict = {model.X1_inputs: X1_batch, model.X2_inputs: X2_batch, model.y_inputs: y_batch,
+                         model.batch_size: _batch_size, model.tst: True, model.keep_prob: 1.0}
+            summary, _cost = sess.run(valid_fetches, feed_dict)
+            test_writer.add_summary(summary, global_step)                            
+            
+            
         
     
     #喂数据
